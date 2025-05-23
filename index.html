@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Game Tebak Warna Sulit - Wahh Edition</title>
+<style>
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0; padding: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    min-height: 100vh;
+    background: linear-gradient(to right, #83a4d4, #b6fbff);
+    color: #222;
+    transition: background-color 0.5s, color 0.5s;
+  }
+  body.dark {
+    background: linear-gradient(to right, #121212, #222);
+    color: #ddd;
+  }
+  h1 {
+    margin-top: 40px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+  #colorBox {
+    width: 200px;
+    height: 200px;
+    border-radius: 15px;
+    margin: 30px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.2);
+    transition: transform 0.3s, box-shadow 0.5s;
+  }
+  #colorBox.correct {
+    animation: glowGreen 1s ease forwards;
+  }
+  #colorBox.wrong {
+    animation: shake 0.5s ease forwards;
+  }
+  @keyframes glowGreen {
+    0% { box-shadow: 0 0 20px lime; transform: scale(1); }
+    50% { box-shadow: 0 0 40px lime; transform: scale(1.1); }
+    100% { box-shadow: 0 0 20px lime; transform: scale(1); }
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-10px); }
+    40%, 80% { transform: translateX(10px); }
+  }
+  .choices {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  button.color-btn {
+    border: 2px solid #fff;
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.3s;
+  }
+  button.color-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 15px #333;
+  }
+  button.color-btn:focus {
+    outline: none;
+    box-shadow: 0 0 20px #666;
+  }
+  .result {
+    margin-top: 20px;
+    font-size: 24px;
+    font-weight: 700;
+    min-height: 28px;
+    user-select: none;
+  }
+  .scoreboard {
+    margin-top: 10px;
+    font-size: 18px;
+    background: #fff8;
+    padding: 10px 20px;
+    border-radius: 12px;
+    color: #222;
+    user-select: none;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    transition: background 0.5s, color 0.5s;
+  }
+  body.dark .scoreboard {
+    background: #000a;
+    color: #ddd;
+    box-shadow: 0 2px 10px rgba(255,255,255,0.2);
+  }
+  #modeToggle {
+    margin: 20px;
+    padding: 8px 20px;
+    font-size: 16px;
+    border: none;
+    background-color: #4db8ff;
+    color: white;
+    border-radius: 8px;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.3s;
+  }
+  #modeToggle:hover {
+    background-color: #3399ff;
+  }
+</style>
+</head>
+<body>
+
+<h1>Tebak Warna<br>
+    BY:FARIS
+</h1>
+<button id="modeToggle">Mode Gelap</button>
+<div id="colorBox" aria-label="Warna yang harus ditebak"></div>
+<div class="choices" id="choices"></div>
+<div class="result" id="result"></div>
+<div class="scoreboard">
+  Skor: <span id="score">0</span> | Skor Tertinggi: <span id="highScore">0</span>
+</div>
+
+<script>
+  const colorBox = document.getElementById('colorBox');
+  const choicesContainer = document.getElementById('choices');
+  const result = document.getElementById('result');
+  const scoreDisplay = document.getElementById('score');
+  const highScoreDisplay = document.getElementById('highScore');
+  const modeToggle = document.getElementById('modeToggle');
+  const body = document.body;
+
+  let score = 0;
+  let highScore = 0;
+  let correctColor = null;
+
+  // Load high score dari localStorage
+  if(localStorage.getItem('highScore')) {
+    highScore = parseInt(localStorage.getItem('highScore'));
+    highScoreDisplay.textContent = highScore;
+  }
+
+  // Toggle dark mode
+  modeToggle.addEventListener('click', () => {
+    body.classList.toggle('dark');
+    modeToggle.textContent = body.classList.contains('dark') ? 'Mode Terang' : 'Mode Gelap';
+  });
+
+  // Buat warna random
+  function generateRandomColor() {
+    return {
+      r: Math.floor(Math.random() * 256),
+      g: Math.floor(Math.random() * 256),
+      b: Math.floor(Math.random() * 256)
+    };
+  }
+
+  // Konversi rgb ke string css
+  function rgbToString(c) {
+    return `rgb(${c.r}, ${c.g}, ${c.b})`;
+  }
+
+  // Batasi nilai warna 0 - 255
+  function clamp(num, min, max) {
+    return num < min ? min : (num > max ? max : num);
+  }
+
+  // Offset kecil untuk bikin warna mirip-mirip
+  function randomOffset() {
+    return Math.floor(Math.random() * 31) - 15; // -15 sampai 15 untuk lebih sulit
+  }
+
+  // Buat pilihan warna mirip
+  function generateSimilarColors(baseColor, count) {
+    const choices = [];
+    choices.push(baseColor);
+
+    while (choices.length < count) {
+      const variation = {
+        r: clamp(baseColor.r + randomOffset(), 0, 255),
+        g: clamp(baseColor.g + randomOffset(), 0, 255),
+        b: clamp(baseColor.b + randomOffset(), 0, 255),
+      };
+      // Pastikan tidak ada duplikat
+      if (!choices.some(c => c.r === variation.r && c.g === variation.g && c.b === variation.b)) {
+        choices.push(variation);
+      }
+    }
+    return shuffleArray(choices);
+  }
+
+  // Fungsi acak array
+  function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+  }
+
+  // Bandingkan dua warna rgb
+  function colorsEqual(c1, c2) {
+    return c1.r === c2.r && c1.g === c2.g && c1.b === c2.b;
+  }
+
+  function startGame() {
+    colorBox.classList.remove('correct', 'wrong');
+    correctColor = generateRandomColor();
+    colorBox.style.backgroundColor = rgbToString(correctColor);
+
+    const options = generateSimilarColors(correctColor, 4);
+    choicesContainer.innerHTML = '';
+    options.forEach(color => {
+      const btn = document.createElement('button');
+      btn.className = 'color-btn';
+      btn.style.backgroundColor = rgbToString(color);
+      btn.setAttribute('aria-label', 'Tebak warna');
+      btn.onclick = () => checkAnswer(color);
+      choicesContainer.appendChild(btn);
+    });
+
+    result.textContent = '';
+  }
+
+  function checkAnswer(selectedColor) {
+    if (colorsEqual(selectedColor, correctColor)) {
+      result.textContent = 'Benar! 🎉';
+      result.style.color = 'limegreen';
+      colorBox.classList.add('correct');
+      score++;
+      if(score > highScore) {
+        highScore = score;
+        localStorage.setItem('highScore', highScore);
+        highScoreDisplay.textContent = highScore;
+      }
+    } else {
+      result.textContent = 'Salah! ❌';
+      result.style.color = 'red';
+      colorBox.classList.add('wrong');
+      score = 0;
+    }
+    scoreDisplay.textContent = score;
+    setTimeout(startGame, 1500);
+  }
+
+  startGame();
+</script>
+
+</body>
+</html>
